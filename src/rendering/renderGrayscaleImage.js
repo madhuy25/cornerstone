@@ -1,192 +1,142 @@
-/**
- * This module is responsible for drawing a grayscale image
- */
-import generateLut from '../internal/generateLut.js';
-import storedPixelDataToCanvasImageData from '../internal/storedPixelDataToCanvasImageData';
-import setToPixelCoordinateSystem from '../setToPixelCoordinateSystem';
+import storedPixelDataToCanvasImageData from '../internal/storedPixelDataToCanvasImageData.js';
+import storedPixelDataToCanvasImageDataRGBA from '../internal/storedPixelDataToCanvasImageDataRGBA.js';
+import setToPixelCoordinateSystem from '../setToPixelCoordinateSystem.js';
+import now from '../internal/now.js';
+import webGL from '../webgl/index.js';
+import getLut from './getLut.js';
+import doesImageNeedToBeRendered from './doesImageNeedToBeRendered.js';
+import initializeRenderCanvas from './initializeRenderCanvas.js';
+import saveLastRendered from './saveLastRendered.js';
 
-function initializeGrayscaleRenderCanvas (enabledElement, image) {
-  const grayscaleRenderCanvas = enabledElement.renderingTools.grayscaleRenderCanvas;
-    // Resize the canvas
+function getRenderCanvas (enabledElement, image, invalidated, useAlphaChannel = true) {
+  const canvasWasColor = enabledElement.renderingTools.lastRenderedIsColor === true;
 
-  grayscaleRenderCanvas.width = image.width;
-  grayscaleRenderCanvas.height = image.height;
-
-    // NOTE - we need to fill the render canvas with white pixels since we control the luminance
-    // Using the alpha channel to improve rendering performance.
-  const grayscaleRenderCanvasContext = grayscaleRenderCanvas.getContext('2d');
-
-  grayscaleRenderCanvasContext.fillStyle = 'white';
-  grayscaleRenderCanvasContext.fillRect(0, 0, grayscaleRenderCanvas.width, grayscaleRenderCanvas.height);
-  const grayscaleRenderCanvasData = grayscaleRenderCanvasContext.getImageData(0, 0, image.width, image.height);
-
-  enabledElement.renderingTools.grayscaleRenderCanvasContext = grayscaleRenderCanvasContext;
-  enabledElement.renderingTools.grayscaleRenderCanvasData = grayscaleRenderCanvasData;
-}
-
-function lutMatches (a, b) {
-  // If undefined, they are equal
-  if (!a && !b) {
-    return true;
-  }
-  // If one is undefined, not equal
-  if (!a || !b) {
-    return false;
+  if (!enabledElement.renderingTools.renderCanvas || canvasWasColor) {
+    enabledElement.renderingTools.renderCanvas = document.createElement('canvas');
   }
 
-  // Check the unique ids
-  return (a.id === b.id);
-}
-
-function getLut (image, viewport, invalidated) {
-    // If we have a cached lut and it has the right values, return it immediately
-  if (image.cachedLut !== undefined &&
-        image.cachedLut.windowCenter === viewport.voi.windowCenter &&
-        image.cachedLut.windowWidth === viewport.voi.windowWidth &&
-        lutMatches(image.cachedLut.modalityLUT, viewport.modalityLUT) &&
-        lutMatches(image.cachedLut.voiLUT, viewport.voiLUT) &&
-        image.cachedLut.invert === viewport.invert &&
-        invalidated !== true) {
-    return image.cachedLut.lutArray;
-  }
-
-    // Lut is invalid or not present, regenerate it and cache it
-  generateLut(image, viewport.voi.windowWidth, viewport.voi.windowCenter, viewport.invert, viewport.modalityLUT, viewport.voiLUT);
-  image.cachedLut.windowWidth = viewport.voi.windowWidth;
-  image.cachedLut.windowCenter = viewport.voi.windowCenter;
-  image.cachedLut.invert = viewport.invert;
-  image.cachedLut.voiLUT = viewport.voiLUT;
-  image.cachedLut.modalityLUT = viewport.modalityLUT;
-
-  return image.cachedLut.lutArray;
-}
-
-function doesImageNeedToBeRendered (enabledElement, image) {
-  const lastRenderedImageId = enabledElement.renderingTools.lastRenderedImageId;
-  const lastRenderedViewport = enabledElement.renderingTools.lastRenderedViewport;
-
-  if (image.imageId !== lastRenderedImageId ||
-        lastRenderedViewport.windowCenter !== enabledElement.viewport.voi.windowCenter ||
-        lastRenderedViewport.windowWidth !== enabledElement.viewport.voi.windowWidth ||
-        lastRenderedViewport.invert !== enabledElement.viewport.invert ||
-        lastRenderedViewport.rotation !== enabledElement.viewport.rotation ||
-        lastRenderedViewport.hflip !== enabledElement.viewport.hflip ||
-        lastRenderedViewport.vflip !== enabledElement.viewport.vflip ||
-        lastRenderedViewport.modalityLUT !== enabledElement.viewport.modalityLUT ||
-        lastRenderedViewport.voiLUT !== enabledElement.viewport.voiLUT
-        ) {
-    return true;
-  }
-
-  return false;
-}
-
-function getRenderCanvas (enabledElement, image, invalidated) {
-  if (!enabledElement.renderingTools.grayscaleRenderCanvas) {
-    enabledElement.renderingTools.grayscaleRenderCanvas = document.createElement('canvas');
-  }
-
-  const grayscaleRenderCanvas = enabledElement.renderingTools.grayscaleRenderCanvas;
-
-    // Apply the lut to the stored pixel data onto the render canvas
+  const renderCanvas = enabledElement.renderingTools.renderCanvas;
 
   if (doesImageNeedToBeRendered(enabledElement, image) === false && invalidated !== true) {
-    return grayscaleRenderCanvas;
+    return renderCanvas;
   }
 
-    // If our render canvas does not match the size of this image reset it
-    // NOTE: This might be inefficient if we are updating multiple images of different
-    // Sizes frequently.
-  if (grayscaleRenderCanvas.width !== image.width || grayscaleRenderCanvas.height !== image.height) {
-    initializeGrayscaleRenderCanvas(enabledElement, image);
+  // If our render canvas does not match the size of this image reset it
+  // NOTE: This might be inefficient if we are updating multiple images of different
+  // Sizes frequently.
+  if (renderCanvas.width !== image.width || renderCanvas.height !== image.height) {
+    initializeRenderCanvas(enabledElement, image);
   }
 
-    // Get the lut to use
-  let start = (window.performance ? performance.now() : Date.now());
+  // Get the lut to use
+  let start = now();
   const lut = getLut(image, enabledElement.viewport, invalidated);
 
-  image.stats.lastLutGenerateTime = (window.performance ? performance.now() : Date.now()) - start;
+  image.stats = image.stats || {};
+  image.stats.lastLutGenerateTime = now() - start;
 
-  const grayscaleRenderCanvasData = enabledElement.renderingTools.grayscaleRenderCanvasData;
-  const grayscaleRenderCanvasContext = enabledElement.renderingTools.grayscaleRenderCanvasContext;
-    // Gray scale image - apply the lut and put the resulting image onto the render canvas
+  const renderCanvasData = enabledElement.renderingTools.renderCanvasData;
+  const renderCanvasContext = enabledElement.renderingTools.renderCanvasContext;
 
-  storedPixelDataToCanvasImageData(image, lut, grayscaleRenderCanvasData.data);
+  // Gray scale image - apply the lut and put the resulting image onto the render canvas
+  if (useAlphaChannel) {
+    storedPixelDataToCanvasImageData(image, lut, renderCanvasData.data);
+  } else {
+    storedPixelDataToCanvasImageDataRGBA(image, lut, renderCanvasData.data);
+  }
 
-  start = (window.performance ? performance.now() : Date.now());
-  grayscaleRenderCanvasContext.putImageData(grayscaleRenderCanvasData, 0, 0);
-  image.stats.lastPutImageDataTime = (window.performance ? performance.now() : Date.now()) - start;
+  start = now();
+  renderCanvasContext.putImageData(renderCanvasData, 0, 0);
+  image.stats.lastPutImageDataTime = now() - start;
 
-  return grayscaleRenderCanvas;
+  return renderCanvas;
 }
 
 /**
  * API function to draw a grayscale image to a given enabledElement
- * @param enabledElement
- * @param invalidated - true if pixel data has been invaldiated and cached rendering should not be used
+ *
+ * @param {EnabledElement} enabledElement The Cornerstone Enabled Element to redraw
+ * @param {Boolean} invalidated - true if pixel data has been invalidated and cached rendering should not be used
+ * @returns {void}
+ * @memberof rendering
  */
 export function renderGrayscaleImage (enabledElement, invalidated) {
   if (enabledElement === undefined) {
-    throw 'drawImage: enabledElement parameter must not be undefined';
+    throw new Error('drawImage: enabledElement parameter must not be undefined');
   }
 
   const image = enabledElement.image;
 
   if (image === undefined) {
-    throw 'drawImage: image must be loaded before it can be drawn';
+    throw new Error('drawImage: image must be loaded before it can be drawn');
   }
 
-    // Get the canvas context and reset the transform
+  // Get the canvas context and reset the transform
   const context = enabledElement.canvas.getContext('2d');
 
   context.setTransform(1, 0, 0, 1, 0, 0);
 
-    // Clear the canvas
+  // Clear the canvas
   context.fillStyle = 'black';
   context.fillRect(0, 0, enabledElement.canvas.width, enabledElement.canvas.height);
 
-    // Turn off image smooth/interpolation if pixelReplication is set in the viewport
-  if (enabledElement.viewport.pixelReplication === true) {
-    context.imageSmoothingEnabled = false;
-    context.mozImageSmoothingEnabled = false; // Firefox doesn't support imageSmoothingEnabled yet
-  } else {
-    context.imageSmoothingEnabled = true;
-    context.mozImageSmoothingEnabled = true;
-  }
+  // Turn off image smooth/interpolation if pixelReplication is set in the viewport
+  context.imageSmoothingEnabled = !enabledElement.viewport.pixelReplication;
+  context.mozImageSmoothingEnabled = context.imageSmoothingEnabled;
 
   // Save the canvas context state and apply the viewport properties
   setToPixelCoordinateSystem(enabledElement, context);
 
-  if (!enabledElement.renderingTools) {
-    enabledElement.renderingTools = {};
-  }
-
   let renderCanvas;
 
   if (enabledElement.options && enabledElement.options.renderer &&
-        enabledElement.options.renderer.toLowerCase() === 'webgl') {
-        // If this enabled element has the option set for WebGL, we should
-        // User it as our renderer.
-    renderCanvas = cornerstone.webGL.renderer.render(enabledElement);
+    enabledElement.options.renderer.toLowerCase() === 'webgl') {
+    // If this enabled element has the option set for WebGL, we should
+    // User it as our renderer.
+    renderCanvas = webGL.renderer.render(enabledElement);
   } else {
-        // If no options are set we will retrieve the renderCanvas through the
-        // Normal Canvas rendering path
+    // If no options are set we will retrieve the renderCanvas through the
+    // Normal Canvas rendering path
     renderCanvas = getRenderCanvas(enabledElement, image, invalidated);
   }
 
-    // Draw the render canvas half the image size (because we set origin to the middle of the canvas above)
-  context.drawImage(renderCanvas, 0, 0, image.width, image.height, 0, 0, image.width, image.height);
+  const sx = enabledElement.viewport.displayedArea.tlhc.x - 1;
+  const sy = enabledElement.viewport.displayedArea.tlhc.y - 1;
+  const width = enabledElement.viewport.displayedArea.brhc.x - sx;
+  const height = enabledElement.viewport.displayedArea.brhc.y - sy;
 
-  enabledElement.renderingTools.lastRenderedImageId = image.imageId;
-  const lastRenderedViewport = {};
+  context.drawImage(renderCanvas, sx, sy, width, height, 0, 0, width, height);
 
-  lastRenderedViewport.windowCenter = enabledElement.viewport.voi.windowCenter;
-  lastRenderedViewport.windowWidth = enabledElement.viewport.voi.windowWidth;
-  lastRenderedViewport.invert = enabledElement.viewport.invert;
-  lastRenderedViewport.rotation = enabledElement.viewport.rotation;
-  lastRenderedViewport.hflip = enabledElement.viewport.hflip;
-  lastRenderedViewport.vflip = enabledElement.viewport.vflip;
-  lastRenderedViewport.modalityLUT = enabledElement.viewport.modalityLUT;
-  lastRenderedViewport.voiLUT = enabledElement.viewport.voiLUT;
-  enabledElement.renderingTools.lastRenderedViewport = lastRenderedViewport;
+  enabledElement.renderingTools = saveLastRendered(enabledElement);
+}
+
+/**
+ * API function to draw a grayscale image to a given layer
+ *
+ * @param {EnabledElementLayer} layer The layer that the image will be added to
+ * @param {Boolean} invalidated - true if pixel data has been invalidated and cached rendering should not be used
+ * @param {Boolean} [useAlphaChannel] - Whether or not to render the grayscale image using only the alpha channel.
+                                        This does not work if this layer is not the first layer in the enabledElement.
+ * @returns {void}
+ */
+export function addGrayscaleLayer (layer, invalidated, useAlphaChannel = false) {
+  if (layer === undefined) {
+    throw new Error('addGrayscaleLayer: layer parameter must not be undefined');
+  }
+
+  const image = layer.image;
+
+  if (image === undefined) {
+    throw new Error('addGrayscaleLayer: image must be loaded before it can be drawn');
+  }
+
+  layer.canvas = getRenderCanvas(layer, image, invalidated, useAlphaChannel);
+
+  const context = layer.canvas.getContext('2d');
+
+  // Turn off image smooth/interpolation if pixelReplication is set in the viewport
+  context.imageSmoothingEnabled = !layer.viewport.pixelReplication;
+  context.mozImageSmoothingEnabled = context.imageSmoothingEnabled;
+
+  layer.renderingTools = saveLastRendered(layer);
 }

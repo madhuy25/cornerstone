@@ -2,16 +2,13 @@ module.exports = {
   'env': {
     'browser': true,
     'es6': true,
-    'jquery': true,
     'node': true,
     'mocha': true
   },
   'extends': 'eslint:recommended',
+  'plugins': ['import'],
   'parserOptions': {
     'sourceType': 'module'
-  },
-  'globals': {
-    'cornerstone': true
   },
   'rules': {
     'accessor-pairs': 'warn',
@@ -62,6 +59,15 @@ module.exports = {
     'id-match': 'warn',
     'indent': ['warn', 2],
     //'init-declarations': 'warn',
+    'import/default': 'warn',
+    'import/export': 'warn',
+    'import/extensions': ['warn', { "js": "always" }],
+    'import/first': 'warn',
+    'import/named': 'warn',
+    'import/namespace': 'warn',
+    'import/newline-after-import': 'warn',
+    'import/no-unresolved': 'warn',
+    'import/no-webpack-loader-syntax': 'warn',
     'jsx-quotes': 'warn',
     'key-spacing': 'warn',
     'keyword-spacing': [
@@ -72,10 +78,10 @@ module.exports = {
       }
     ],
     //'line-comment-position': 'warn',
-    'linebreak-style': [
+    /*'linebreak-style': [
       'warn',
       'unix'
-    ],
+    ],*/
     'lines-around-comment': 'warn',
     'lines-around-directive': 'warn',
     'max-depth': 'warn',
@@ -170,7 +176,7 @@ module.exports = {
     'no-tabs': 'warn',
     'no-template-curly-in-string': 'warn',
     'no-ternary': 'off',
-    //'no-throw-literal': 'warn',
+    'no-throw-literal': 'warn',
     'no-trailing-spaces': 'warn',
     'no-undef': 'error',
     'no-undef-init': 'warn',
@@ -190,7 +196,7 @@ module.exports = {
     'no-useless-return': 'off',
     'no-var': 'warn',
     'no-void': 'warn',
-    'no-warning-comments': 'warn',
+    //'no-warning-comments': 'warn',
     'no-whitespace-before-property': 'warn',
     'no-with': 'warn',
     'object-curly-spacing': [
@@ -241,7 +247,7 @@ module.exports = {
       'warn',
       'never'
     ],
-    //'valid-jsdoc': 'warn',
+    'valid-jsdoc': 'warn',
     'vars-on-top': 'warn',
     'wrap-iife': ['warn', 'inside'],
     'wrap-regex': 'warn',

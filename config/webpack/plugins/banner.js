@@ -1,23 +1,23 @@
 const path = require('path');
 const webpack = require('webpack');
-const rootPath = process.env.PWD;
-const pkgPath = path.resolve(rootPath, "package");
+const rootPath = process.cwd();
+const pkgPath = path.join(rootPath, "package");
 const pkg = require(pkgPath);
 
 const getCurrentDate = () => {
   const today = new Date();
   const year = today.getFullYear();
-  const month = ('00' + today.getMonth() + 1).slice(-2);
-  const date = ('00' + today.getDate()).slice(-2);
+  const month = ('0' + (today.getMonth() + 1)).slice(-2);
+  const date = ('0' + today.getDate()).slice(-2);
 
   return `${year}-${month}-${date}`;
-}
+};
 
 const getBanner = () => {
   return `/*! ${pkg.name} - ${pkg.version} - ` +
          `${getCurrentDate()} ` +
-         `| (c) 2016 Chris Hafey | https://github.com/chafey/cornerstone */`
-}
+         `| (c) 2016 Chris Hafey | https://github.com/cornerstonejs/cornerstone */`
+};
 
 module.exports = () => {
   return new webpack.BannerPlugin({
@@ -25,4 +25,4 @@ module.exports = () => {
     entryOnly: true,
     raw: true
   });
-}
+};

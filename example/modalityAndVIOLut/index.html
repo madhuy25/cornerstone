@@ -2,162 +2,222 @@
 <html>
 <head>
     <!-- twitter bootstrap CSS stylesheet - included to make things pretty, not needed or used by cornerstone -->
-    <link href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet">
-
-    <!-- cornerstone css - provides some useful css classes -->
-    <link href="../cornerstone.css" rel="stylesheet">
-
+    <link href="https://netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
-<div class="container">
+    <div class="container">
 
-    <h1>
-        imageloader/index.html
-    </h1>
-    This example shows the application of Modality LUT and VOI LUT to the image display pipeline
-    <br>
-    <br>
+        <h1>
+            imageloader/index.html
+        </h1>
 
-    <input type="checkbox" id="toggleModalityLUT">Apply Modality LUT</input>
-    <input type="checkbox" id="toggleVOILUT">Apply VOI LUT</input>
+        This example shows the application of Modality LUT and VOI LUT to the image display pipeline
 
-    <div id="dicomImage" style="width:512px;height:512px;"
-         class="cornerstone-enabled-image"
-         oncontextmenu="return false"
-         unselectable='on'
-         onselectstart='return false;'
-         onmousedown='return false;'>
+        <br>
+        <br>
+
+        <input type="checkbox" id="toggleModalityLUT">Apply Modality LUT</input>
+        <br />
+        <input type="checkbox" id="toggleVOILUT">Apply VOI LUT</input>
+        <span>|</span>
+        <span>Select a preset VOI: </span>
+        <select id="selectPreset">
+            <option value="-1">(WW/WC)</option>
+            <option value="0">200/50</option>
+            <option value="1">100/127</option>
+            <option value="2">Random VoiLut Function</option>
+        </select>
+        <span>|</span>
+        <input type="button" id="resetVOI" value="Reset VOI" />
+        <br>
+        <br>
+
+        <div id="dicomImage" style="width:512px;height:512px"
+             oncontextmenu="return false"
+             onmousedown="return false">
+        </div>
+
     </div>
-
-
-
-
-</div>
 </body>
-
-<!-- cornerstone depends on jQuery so it must be loaded first-->
-<script src="../jquery.min.js"></script>
 
 <!-- include the cornerstone library -->
 <script src="../../dist/cornerstone.js"></script>
-
+<script>window.cornerstone || document.write('<script src="https://unpkg.com/cornerstone-core">\x3C/script>')</script>
 
 <script>
-    $(document).ready(function() {
 
-        // create an inverting lut
-        var modalityLUT = {
-            id : '1',
-            firstValueMapped: 0,
-            numBitsPerEntry : 8,
-            lut: []
+    // create an inverting lut
+    var modalityLUT = {
+        id : '1',
+        firstValueMapped: 0,
+        numBitsPerEntry : 8,
+        lut: []
+    };
+
+    for(let i=0; i < 256; i++) {
+        modalityLUT.lut[i] = 255 - i;
+    }
+
+    var voiLUT = {
+        id : '1',
+        firstValueMapped: 0,
+        numBitsPerEntry : 8,
+        lut: []
+    };
+
+    for(let i=0; i < 256; i++) {
+        voiLUT.lut[i] = i / 2 + 127;
+    }
+
+
+    //create VOI Presets
+    var presetVoiLUT = {
+        id: '2',
+        firstValueMapped: 0,
+        numBitsPerEntry: 8,
+        lut: []
+    };
+
+    for (let i = 0; i < 256; i++) {
+        presetVoiLUT.lut[i] = Math.floor(Math.random() * 256);
+    }
+
+    var voiPresets = [{ ww: 200, wc: 50 }, { ww: 100, wc: 127 }, { voiLUT: presetVoiLUT }];
+
+    // Loads an image given an imageId
+    function loadImage(imageId) {
+        var width = 256;
+        var height = 256;
+
+        var numPixels = width * height;
+        var pixelData = new Uint16Array(numPixels);
+        var index = 0;
+        var rnd = 0;// Math.round(Math.random() * 255);
+        for (let y = 0; y < height; y++) {
+            for (let x = 0; x < width; x++) {
+                pixelData[index] = (x + rnd) % 256;
+                index++;
+            }
+        }
+
+        function getPixelData()
+        {
+            return pixelData;
+        }
+
+        var image = {
+            imageId: imageId,
+            minPixelValue: 0,
+            maxPixelValue: 255,
+            slope: 1.0,
+            intercept: 0,
+            windowCenter: 127,
+            windowWidth: 256,
+            render: cornerstone.renderGrayscaleImage,
+            getPixelData: getPixelData,
+            rows: height,
+            columns: width,
+            height: height,
+            width: width,
+            color: false,
+            columnPixelSpacing: 1.0,
+            rowPixelSpacing: 1.0,
+            invert: false,
+            sizeInBytes: width * height * 2
         };
 
-        for(var i=0; i < 256; i++) {
-            modalityLUT.lut[i] = 255 - i;
-        }
-
-        var voiLUT = {
-            id : '1',
-            firstValueMapped: 0,
-            numBitsPerEntry : 8,
-            lut: []
+        return {
+            promise: new Promise((resolve) => resolve(image)),
+            cancelFn: undefined
         };
+    }
 
-        for(var i=0; i < 256; i++) {
-            voiLUT.lut[i] = i / 2 + 127;
+    cornerstone.registerImageLoader('myImageLoader', loadImage);
+
+    // image enable the element
+    const element = document.getElementById('dicomImage');
+    cornerstone.enable(element);
+
+    // load the image and display it
+    const imageId = 'myImageLoader://1';
+    cornerstone.loadImage(imageId).then(function(image) {
+        cornerstone.displayImage(element, image);
+
+        let viewport = cornerstone.getViewport(element);
+        viewport.voi.voiPresets = voiPresets;
+        cornerstone.setViewport(element, viewport);
+    });
+
+    document.getElementById('toggleModalityLUT').addEventListener('click', function() {
+        const applyModalityLUT = document.getElementById('toggleModalityLUT').checked;
+        console.log('applyModalityLUT=', applyModalityLUT);
+        let viewport = cornerstone.getViewport(element);
+        if(applyModalityLUT) {
+            viewport.modalityLUT = modalityLUT;
+        } else {
+            viewport.modalityLUT = undefined;
+        }
+        cornerstone.setViewport(element, viewport);
+    });
+
+    document.getElementById('toggleVOILUT').addEventListener('click', function() {
+        const applyVOILUT = document.getElementById('toggleVOILUT').checked;
+        console.log('applyVOILUT=', applyVOILUT);
+        let viewport = cornerstone.getViewport(element);
+        if(applyVOILUT) {
+            viewport.voiLUT = voiLUT;
+        } else {
+            viewport.voiLUT = undefined;
         }
 
-        // Loads an image given an imageId
-        function loadImage(imageId) {
-            var width = 256;
-            var height = 256;
+        document.getElementById('selectPreset').value = -1;
 
-            var numPixels = width * height;
-            var pixelData = new Uint16Array(numPixels);
-            var index = 0;
-            var rnd = 0;// Math.round(Math.random() * 255);
-            for (var y = 0; y < height; y++) {
-                for (var x = 0; x < width; x++) {
-                    pixelData[index] = (x + rnd) % 256;
-                    index++;
-                }
-            }
+        cornerstone.setViewport(element, viewport);
+    });
 
-            function getPixelData()
-            {
-                return pixelData;
-            }
+    document.getElementById('selectPreset').addEventListener("change", function () {
+        let selectedIndex = parseInt(document.getElementById('selectPreset').value, 10);
+        let image = cornerstone.getImage(element);
+        let viewport = cornerstone.getViewport(element);
 
-            var image = {
-                imageId: imageId,
-                minPixelValue: 0,
-                maxPixelValue: 255,
-                slope: 1.0,
-                intercept: 0,
+        if (selectedIndex >= 0 && selectedIndex < voiPresets.length) {
 
-                windowCenter: 127,
-                windowWidth: 256,
+            let voiPreset = voiPresets[selectedIndex];
 
-                render: cornerstone.renderGrayscaleImage,
-                getPixelData: getPixelData,
-                rows: height,
-                columns: width,
-                height: height,
-                width: width,
-                color: false,
-                columnPixelSpacing: 1.0,
-                rowPixelSpacing: 1.0,
-                invert: false,
-                sizeInBytes: width * height * 2
-            };
+            //keep old values as a state since user might only pass the voiLUT
+            viewport.voi.windowWidth = (voiPreset.ww === undefined) ? viewport.voi.windowWidth : voiPreset.ww;
+            viewport.voi.windowCenter = (voiPreset.wc === undefined) ? viewport.voi.windowCenter : voiPreset.wc;
 
-            // Create a deferred object, resolve it with the image object we just created and return the
-            // deferred to cornerstone.  Cornerstone will get the image object by calling then() on the
-            // deferred
-            var deferred = $.Deferred();
-            deferred.resolve(image);
-            return deferred;
+            //this always apply
+            viewport.voiLUT = voiPreset.voiLUT; 
+
+            cornerstone.setViewport(element, viewport);
+
+            document.getElementById('toggleVOILUT').checked = false;
         }
-
-        cornerstone.registerImageLoader('myImageLoader', loadImage);
-
-        // image enable the element
-        var element = document.getElementById('dicomImage');
-        cornerstone.enable(element);
-
-        // load the image and display it
-        var imageId = 'myImageLoader://1';
-        cornerstone.loadImage(imageId).done(function(image) {
-            cornerstone.displayImage(element, image);
-        });
-
-        $('#toggleModalityLUT').on('click', function() {
-            var applyModalityLUT = $('#toggleModalityLUT').is(":checked");
-            console.log('applyModalityLUT=', applyModalityLUT);
-            var viewport = cornerstone.getViewport(element);
-            if(applyModalityLUT) {
-                viewport.modalityLUT = modalityLUT;
-            } else {
-                viewport.modalityLUT = undefined;
-            }
-            cornerstone.setViewport(element, viewport);
-        });
-
-        $('#toggleVOILUT').on('click', function() {
-            var applyVOILUT = $('#toggleVOILUT').is(":checked");
-            console.log('applyVOILUT=', applyVOILUT);
-            var viewport = cornerstone.getViewport(element);
-            if(applyVOILUT) {
-                viewport.voiLUT = voiLUT;
-            } else {
-                viewport.voiLUT = undefined;
-            }
-            cornerstone.setViewport(element, viewport);
-        });
+        else {
+            resetVoiLUT();
+        }
 
 
     });
+
+    document.getElementById('resetVOI').addEventListener("click", function () {
+        resetVoiLUT();
+    });
+
+    function resetVoiLUT() {
+        let viewport = cornerstone.getViewport(element);
+
+        document.getElementById('selectPreset').value = -1;
+        document.getElementById('toggleVOILUT').checked = false;
+
+        viewport.voiLUT = undefined;
+        viewport.voi.windowWidth = undefined;
+        viewport.voi.windowCenter = undefined;
+
+        cornerstone.setViewport(element, viewport);
+    }
 
 </script>
 </html>

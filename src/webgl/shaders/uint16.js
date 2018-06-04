@@ -1,14 +1,22 @@
 /* eslint no-bitwise: 0 */
 
-// For uint16 pack uint16 into two uint8 channels (r and a)
 const uint16Shader = {};
 
+/**
+ * Convert stored pixel data to image data.
+ *
+ * For uint16 pack uint16 into two uint8 channels (r and a).
+ *
+ * @param {Image} image A Cornerstone Image Object
+ * @returns {Uint8Array} The image data for use by the WebGL shader
+ * @memberof WebGLRendering
+ */
 function storedPixelDataToImageData (image) {
 
-    // Transfer image data to alpha and luminance channels of WebGL texture
-    // Credit to @jpambrun and @fernandojsg
+  // Transfer image data to alpha and luminance channels of WebGL texture
+  // Credit to @jpambrun and @fernandojsg
 
-    // Pack uint16 into two uint8 channels (r and a)
+  // Pack uint16 into two uint8 channels (r and a)
   const pixelData = image.getPixelData();
   const numberOfChannels = 2;
   const data = new Uint8Array(image.width * image.height * numberOfChannels);
@@ -17,8 +25,8 @@ function storedPixelDataToImageData (image) {
   for (let i = 0; i < pixelData.length; i++) {
     const val = pixelData[i];
 
-    data[offset++] = parseInt(val & 0xFF, 10);
-    data[offset++] = parseInt(val >> 8, 10);
+    data[offset++] = val & 0xFF;
+    data[offset++] = val >> 8;
   }
 
   return data;

@@ -1,16 +1,16 @@
 const uint8Shader = {};
 
+/**
+ * Convert stored pixel data to image data. Here we will store
+ * all data in the alpha channel.
+ *
+ * @param {Image} image A Cornerstone Image Object
+ * @returns {Uint8Array} The image data for use by the WebGL shader
+ * @memberof WebGLRendering
+ */
 function storedPixelDataToImageData (image) {
-    // Transfer image data to alpha channel of WebGL texture
-    // Store data in Uuint8Array
-  const pixelData = image.getPixelData();
-  const data = new Uint8Array(pixelData.length);
-
-  for (let i = 0; i < pixelData.length; i++) {
-    data[i] = parseInt(pixelData[i], 10);
-  }
-
-  return data;
+  // Transfer image data to alpha channel of WebGL texture
+  return image.getPixelData();
 }
 
 export const uint8DataUtilities = {

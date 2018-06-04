@@ -1,48 +1,56 @@
-/**
- * This module contains functions to deal with getting and setting the viewport for an enabled element
- */
-
+import getDefaultViewport from './internal/getDefaultViewport.js';
 import { getEnabledElement } from './enabledElements.js';
 import updateImage from './updateImage.js';
 
+const MIN_WINDOW_WIDTH = 0.000001;
+const MIN_VIEWPORT_SCALE = 0.0001;
+
 /**
- * Sets the viewport for an element and corrects invalid values
+ * Sets/updates viewport of a given enabled element
  *
- * @param element - DOM element of the enabled element
- * @param viewport - Object containing the viewport properties
- * @returns {*}
+ * @param {HTMLElement} element - DOM element of the enabled element
+ * @param {Viewport} [viewport] - Object containing the viewport properties
+ * @returns {void}
+ * @memberof ViewportSettings
  */
 export default function (element, viewport) {
-
   const enabledElement = getEnabledElement(element);
 
-  enabledElement.viewport.scale = viewport.scale;
-  enabledElement.viewport.translation.x = viewport.translation.x;
-  enabledElement.viewport.translation.y = viewport.translation.y;
-  enabledElement.viewport.voi.windowWidth = viewport.voi.windowWidth;
-  enabledElement.viewport.voi.windowCenter = viewport.voi.windowCenter;
-  enabledElement.viewport.invert = viewport.invert;
-  enabledElement.viewport.pixelReplication = viewport.pixelReplication;
-  enabledElement.viewport.rotation = viewport.rotation;
-  enabledElement.viewport.hflip = viewport.hflip;
-  enabledElement.viewport.vflip = viewport.vflip;
-  enabledElement.viewport.modalityLUT = viewport.modalityLUT;
-  enabledElement.viewport.voiLUT = viewport.voiLUT;
-
-    // Prevent window width from being too small (note that values close to zero are valid and can occur with
-    // PET images in particular)
-  if (enabledElement.viewport.voi.windowWidth < 0.000001) {
-    enabledElement.viewport.voi.windowWidth = 0.000001;
-  }
-    // Prevent scale from getting too small
-  if (enabledElement.viewport.scale < 0.0001) {
-    enabledElement.viewport.scale = 0.25;
+  // If viewport is not already set, start with default and merge new
+  // viewport options later
+  if (enabledElement.viewport === undefined) {
+    enabledElement.viewport = getDefaultViewport(enabledElement.canvas);
   }
 
-  if (enabledElement.viewport.rotation === 360 || enabledElement.viewport.rotation === -360) {
-    enabledElement.viewport.rotation = 0;
+  // Merge viewport
+  if (viewport) {
+    for (const attrname in viewport) {
+      if (viewport[attrname] !== null) {
+        enabledElement.viewport[attrname] = viewport[attrname];
+      }
+    }
   }
 
+
+  // Prevent window width from being too small (note that values close to zero are valid and can occur with
+  // PET images in particular)
+  if (enabledElement.viewport.voi.windowWidth) {
+    enabledElement.viewport.voi.windowWidth = Math.max(viewport.voi.windowWidth, MIN_WINDOW_WIDTH);
+  }
+
+  // Prevent scale from getting too small
+  if (enabledElement.viewport.scale) {
+    enabledElement.viewport.scale = Math.max(viewport.scale, MIN_VIEWPORT_SCALE);
+  }
+
+  // Normalize the rotation value to a positive rotation in degrees
+  enabledElement.viewport.rotation %= 360;
+  if (enabledElement.viewport.rotation < 0) {
+    enabledElement.viewport.rotation += 360;
+  }
+
+  if (enabledElement.image) {
     // Force the image to be updated since the viewport has been modified
-  updateImage(element);
+    updateImage(element);
+  }
 }

@@ -1,103 +1,97 @@
+import { addEnabledElement } from './enabledElements.js';
+import resize from './resize.js';
+import drawImageSync from './internal/drawImageSync.js';
+import requestAnimationFrame from './internal/requestAnimationFrame.js';
+import tryEnableWebgl from './internal/tryEnableWebgl.js';
+import triggerEvent from './triggerEvent.js';
+import EVENTS from './events.js';
+import getCanvas from './internal/getCanvas.js';
+
 /**
+ * @module Enable
  * This module is responsible for enabling an element to display images with cornerstone
  */
 
-import { addEnabledElement } from './enabledElements.js';
-import resize from './resize.js';
-import requestAnimationFrame from './internal/requestAnimationFrame.js';
-import { renderColorImage } from './rendering/renderColorImage';
-import { renderGrayscaleImage } from './rendering/renderGrayscaleImage';
-import webGL from './webgl/index.js';
+/**
+ * Returns whether or not an Enabled Element has either a currently active image or
+ * a non-empty Array of Enabled Element Layers.
+ *
+ * @param {EnabledElement} enabledElement An Enabled Element
+ * @return {Boolean} Whether or not the Enabled Element has an active image or valid set of layers
+ * @memberof Enable
+ */
+function hasImageOrLayers (enabledElement) {
+  return enabledElement.image !== undefined || enabledElement.layers.length > 0;
+}
 
+/**
+ * Enable an HTML Element for use in Cornerstone
+ *
+ * - If there is a Canvas already present within the HTMLElement, and it has the class
+ * 'cornerstone-canvas', this function will use this existing Canvas instead of creating
+ * a new one. This may be helpful when using libraries (e.g. React, Vue) which don't
+ * want third parties to change the DOM.
+ *
+ * @param {HTMLElement} element An HTML Element enabled for Cornerstone
+ * @param {Object} options Options for the enabledElement
+ *
+ * @return {void}
+ * @memberof Enable
+ */
 export default function (element, options) {
   if (element === undefined) {
-    throw 'enable: parameter element cannot be undefined';
+    throw new Error('enable: parameter element cannot be undefined');
   }
 
-    // If this enabled element has the option set for WebGL, we should
-    // Check if this device actually supports it
+  // If this enabled element has the option set for WebGL, we should
+  // Check if this device actually supports it
   if (options && options.renderer && options.renderer.toLowerCase() === 'webgl') {
-    if (webGL.renderer.isWebGLAvailable()) {
-            // If WebGL is available on the device, initialize the renderer
-            // And return the renderCanvas from the WebGL rendering path
-      console.log('Using WebGL rendering path');
-
-      webGL.renderer.initRenderer();
-      options.renderer = 'webgl';
-    } else {
-            // If WebGL is not available on this device, we will fall back
-            // To using the Canvas renderer
-      console.error('WebGL not available, falling back to Canvas renderer');
-      delete options.renderer;
-    }
+    tryEnableWebgl(options);
   }
 
-  const canvas = document.createElement('canvas');
+  const canvas = getCanvas(element);
 
-  element.appendChild(canvas);
-
-  const el = {
+  const enabledElement = {
     element,
     canvas,
     image: undefined, // Will be set once image is loaded
     invalid: false, // True if image needs to be drawn, false if not
     needsRedraw: true,
     options,
-    data: {}
+    layers: [],
+    data: {},
+    renderingTools: {}
   };
 
-  addEnabledElement(el);
+  addEnabledElement(enabledElement);
 
   resize(element, true);
 
-  function draw () {
-    if (el.canvas === undefined) {
+  /**
+   * Draw the image immediately
+   *
+   * @param {DOMHighResTimeStamp} timestamp The current time for when requestAnimationFrame starts to fire callbacks
+   * @returns {void}
+   * @memberof Drawing
+   */
+  function draw (timestamp) {
+    if (enabledElement.canvas === undefined) {
       return;
     }
-    if (el.needsRedraw && el.image !== undefined) {
-      const start = new Date();
-      let render = el.image.render;
 
-      el.image.stats = {
-        lastGetPixelDataTime: -1.0,
-        laststoredPixelDataToCanvasImageDataTime: -1.0,
-        lastPutImageDataTime: -1.0,
-        lastRenderTime: -1.0,
-        lastLutGenerateTime: -1.0
-      };
+    const eventDetails = {
+      enabledElement,
+      timestamp
+    };
 
-      if (!render) {
-        render = el.image.color ? renderColorImage : renderGrayscaleImage;
-      }
+    triggerEvent(enabledElement.element, EVENTS.PRE_RENDER, eventDetails);
 
-      render(el, el.invalid);
-
-      const context = el.canvas.getContext('2d');
-
-      const end = new Date();
-      const diff = end - start;
-
-      const eventData = {
-        viewport: el.viewport,
-        element: el.element,
-        image: el.image,
-        enabledElement: el,
-        canvasContext: context,
-        renderTimeInMs: diff
-      };
-
-      el.image.stats.lastRenderTime = diff;
-
-      el.invalid = false;
-      el.needsRedraw = false;
-
-      $(el.element).trigger('CornerstoneImageRendered', eventData);
+    if (enabledElement.needsRedraw && hasImageOrLayers(enabledElement)) {
+      drawImageSync(enabledElement, enabledElement.invalid);
     }
 
     requestAnimationFrame(draw);
   }
 
   draw();
-
-  return element;
 }

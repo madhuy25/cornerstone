@@ -1,18 +1,26 @@
-// Pack RGB images into a 3-channel RGB texture
 const rgbShader = {};
 
+/**
+ * Convert stored pixel data to image data.
+ *
+ * Pack RGB images into a 3-channel RGB texture
+ *
+ * @param {Image} image A Cornerstone Image Object
+ * @returns {Uint8Array} The image data for use by the WebGL shader
+ * @memberof WebGLRendering
+ */
 function storedPixelDataToImageData (image) {
   const minPixelValue = image.minPixelValue;
   let canvasImageDataIndex = 0;
   let storedPixelDataIndex = 0;
-    // Only 3 channels, since we use WebGL's RGB texture format
+  // Only 3 channels, since we use WebGL's RGB texture format
   const numStoredPixels = image.width * image.height * 4;
   const numOutputPixels = image.width * image.height * 3;
   const storedPixelData = image.getPixelData();
   const data = new Uint8Array(numOutputPixels);
 
-    // NOTE: As of Nov 2014, most javascript engines have lower performance when indexing negative indexes.
-    // We have a special code path for this case that improves performance.  Thanks to @jpambrun for this enhancement
+  // NOTE: As of Nov 2014, most javascript engines have lower performance when indexing negative indexes.
+  // We have a special code path for this case that improves performance.  Thanks to @jpambrun for this enhancement
   if (minPixelValue < 0) {
     while (storedPixelDataIndex < numStoredPixels) {
       data[canvasImageDataIndex++] = storedPixelData[storedPixelDataIndex++] + (-minPixelValue); // Red

@@ -1,26 +1,87 @@
+import getImageFitScale from './getImageFitScale.js';
+
+
 /**
- * This module contains a function to get a default viewport for an image given
- * a canvas element to display it in
+ * Creates a new viewport object containing default values
  *
+ * @returns {Viewport} viewport object
+ * @memberof Internal
  */
+function createViewport () {
+  const displayedArea = createDefaultDisplayedArea();
+
+  return {
+    scale: 1,
+    translation: {
+      x: 0,
+      y: 0
+    },
+    voi: {
+      windowWidth: undefined,
+      windowCenter: undefined
+    },
+    invert: false,
+    pixelReplication: false,
+    rotation: 0,
+    hflip: false,
+    vflip: false,
+    modalityLUT: undefined,
+    voiLUT: undefined,
+    colormap: undefined,
+    labelmap: false,
+    displayedArea
+  };
+}
+
+
+/**
+ * Creates the default displayed area.
+ * C.10.4 Displayed Area Module: This Module describes Attributes required to define a Specified Displayed Area space.
+ *
+ * @returns {tlhc: {x,y}, brhc: {x, y},rowPixelSpacing: Number, columnPixelSpacing: Number, presentationSizeMode: Number} displayedArea object
+ * @memberof Internal
+ */
+
+function createDefaultDisplayedArea () {
+  return {
+    // Top Left Hand Corner
+    tlhc: {
+      x: 1,
+      y: 1
+    },
+    // Bottom Right Hand Corner
+    brhc: {
+      x: 1,
+      y: 1
+    },
+    rowPixelSpacing: 1,
+    columnPixelSpacing: 1,
+    presentationSizeMode: 'NONE'
+  };
+}
 
 /**
  * Creates a new viewport object containing default values for the image and canvas
- * @param canvas
- * @param image
- * @returns viewport object
+ *
+ * @param {HTMLElement} canvas A Canvas DOM element
+ * @param {Image} image A Cornerstone Image Object
+ * @returns {Viewport} viewport object
+ * @memberof Internal
  */
 export default function (canvas, image) {
   if (canvas === undefined) {
-    throw 'getDefaultViewport: parameter canvas must not be undefined';
+    throw new Error('getDefaultViewport: parameter canvas must not be undefined');
   }
 
   if (image === undefined) {
-    throw 'getDefaultViewport: parameter image must not be undefined';
+    return createViewport();
   }
 
-  const viewport = {
-    scale: 1.0,
+  // Fit image to window
+  const scale = getImageFitScale(canvas, image, 0).scaleFactor;
+
+  return {
+    scale,
     translation: {
       x: 0,
       y: 0
@@ -35,18 +96,21 @@ export default function (canvas, image) {
     hflip: false,
     vflip: false,
     modalityLUT: image.modalityLUT,
-    voiLUT: image.voiLUT
+    voiLUT: image.voiLUT,
+    colormap: image.colormap,
+    labelmap: Boolean(image.labelmap),
+    displayedArea: {
+      tlhc: {
+        x: 1,
+        y: 1
+      },
+      brhc: {
+        x: image.columns,
+        y: image.rows
+      },
+      rowPixelSpacing: image.rowPixelSpacing === undefined ? 1 : image.rowPixelSpacing,
+      columnPixelSpacing: image.columnPixelSpacing === undefined ? 1 : image.columnPixelSpacing,
+      presentationSizeMode: 'NONE'
+    }
   };
-
-    // Fit image to window
-  const verticalScale = canvas.height / image.rows;
-  const horizontalScale = canvas.width / image.columns;
-
-  if (horizontalScale < verticalScale) {
-    viewport.scale = horizontalScale;
-  } else {
-    viewport.scale = verticalScale;
-  }
-
-  return viewport;
 }

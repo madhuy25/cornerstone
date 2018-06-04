@@ -1,5 +1,9 @@
+import EVENTS, { events } from '../events.js';
+import triggerEvent from '../triggerEvent.js';
+
 /**
  * This module deals with caching image textures in VRAM for WebGL
+ * @module WebGLTextureCache
  */
 
 const imageCache = {};
@@ -18,13 +22,13 @@ function getCacheInfo () {
 }
 
 function purgeCacheIfNecessary () {
-    // If max cache size has not been exceeded, do nothing
+  // If max cache size has not been exceeded, do nothing
   if (cacheSizeInBytes <= maximumSizeInBytes) {
     return;
   }
 
-    // Cache size has been exceeded, create list of images sorted by timeStamp
-    // So we can purge the least recently used image
+  // Cache size has been exceeded, create list of images sorted by timeStamp
+  // So we can purge the least recently used image
   function compare (a, b) {
     if (a.timeStamp > b.timeStamp) {
       return -1;
@@ -37,7 +41,7 @@ function purgeCacheIfNecessary () {
   }
   cachedImages.sort(compare);
 
-    // Remove images as necessary
+  // Remove images as necessary
   while (cacheSizeInBytes > maximumSizeInBytes) {
     const lastCachedImage = cachedImages[cachedImages.length - 1];
 
@@ -45,20 +49,20 @@ function purgeCacheIfNecessary () {
     delete imageCache[lastCachedImage.imageId];
     cachedImages.pop();
 
-    $(cornerstone).trigger('CornerstoneWebGLTextureRemoved', { imageId: lastCachedImage.imageId });
+    triggerEvent(events, EVENTS.WEBGL_TEXTURE_REMOVED, { imageId: lastCachedImage.imageId });
   }
 
   const cacheInfo = getCacheInfo();
 
-  $(cornerstone).trigger('CornerstoneWebGLTextureCacheFull', cacheInfo);
+  triggerEvent(events, EVENTS.WEBGL_TEXTURE_CACHE_FULL, cacheInfo);
 }
 
 function setMaximumSizeBytes (numBytes) {
   if (numBytes === undefined) {
-    throw 'setMaximumSizeBytes: parameter numBytes must not be undefined';
+    throw new Error('setMaximumSizeBytes: parameter numBytes must not be undefined');
   }
   if (numBytes.toFixed === undefined) {
-    throw 'setMaximumSizeBytes: parameter numBytes must be a number';
+    throw new Error('setMaximumSizeBytes: parameter numBytes must be a number');
   }
 
   maximumSizeInBytes = numBytes;
@@ -69,19 +73,19 @@ function putImageTexture (image, imageTexture) {
   const imageId = image.imageId;
 
   if (image === undefined) {
-    throw 'putImageTexture: image must not be undefined';
+    throw new Error('putImageTexture: image must not be undefined');
   }
 
   if (imageId === undefined) {
-    throw 'putImageTexture: imageId must not be undefined';
+    throw new Error('putImageTexture: imageId must not be undefined');
   }
 
   if (imageTexture === undefined) {
-    throw 'putImageTexture: imageTexture must not be undefined';
+    throw new Error('putImageTexture: imageTexture must not be undefined');
   }
 
   if (Object.prototype.hasOwnProperty.call(imageCache, imageId) === true) {
-    throw 'putImageTexture: imageId already in cache';
+    throw new Error('putImageTexture: imageId already in cache');
   }
 
   const cachedImage = {
@@ -95,10 +99,10 @@ function putImageTexture (image, imageTexture) {
   cachedImages.push(cachedImage);
 
   if (imageTexture.sizeInBytes === undefined) {
-    throw 'putImageTexture: imageTexture does not have sizeInBytes property or';
+    throw new Error('putImageTexture: imageTexture.sizeInBytes must not be undefined');
   }
   if (imageTexture.sizeInBytes.toFixed === undefined) {
-    throw 'putImageTexture: imageTexture.sizeInBytes is not a number';
+    throw new Error('putImageTexture: imageTexture.sizeInBytes is not a number');
   }
   cacheSizeInBytes += cachedImage.sizeInBytes;
   purgeCacheIfNecessary();
@@ -106,15 +110,15 @@ function putImageTexture (image, imageTexture) {
 
 function getImageTexture (imageId) {
   if (imageId === undefined) {
-    throw 'getImageTexture: imageId must not be undefined';
+    throw new Error('getImageTexture: imageId must not be undefined');
   }
   const cachedImage = imageCache[imageId];
 
   if (cachedImage === undefined) {
-    return undefined;
+    return;
   }
 
-    // Bump time stamp for cached image
+  // Bump time stamp for cached image
   cachedImage.timeStamp = new Date();
 
   return cachedImage.imageTexture;
@@ -122,12 +126,12 @@ function getImageTexture (imageId) {
 
 function removeImageTexture (imageId) {
   if (imageId === undefined) {
-    throw 'removeImageTexture: imageId must not be undefined';
+    throw new Error('removeImageTexture: imageId must not be undefined');
   }
   const cachedImage = imageCache[imageId];
 
   if (cachedImage === undefined) {
-    throw 'removeImageTexture: imageId must not be undefined';
+    throw new Error('removeImageTexture: imageId must not be undefined');
   }
   cachedImages.splice(cachedImages.indexOf(cachedImage), 1);
   cacheSizeInBytes -= cachedImage.sizeInBytes;
